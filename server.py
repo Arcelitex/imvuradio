@@ -1,7 +1,6 @@
 import requests
-from flask import Flask, Response, stream_with_context
+from flask import Flask, Response
 
-# Your original radio stream URL
 SOURCE = "https://sleeping.radiostream123.com/"
 
 app = Flask(__name__)
@@ -11,19 +10,28 @@ def home():
     return "Radio Proxy Running"
 
 @app.route("/radio.mp3")
-def proxy_stream():
-    upstream = requests.get(SOURCE, stream=True, headers={
-        "User-Agent": "Mozilla/5.0"
-    })
-    
+def stream():
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "*/*",
+        "Icy-MetaData": "1"
+    }
+
+    upstream = requests.get(SOURCE, stream=True, headers=headers)
+
+    def generate():
+        for chunk in upstream.iter_content(chunk_size=16384):
+            if chunk:
+                yield chunk
+
     return Response(
-        stream_with_context(upstream.iter_content(chunk_size=1024)),
+        generate(),
         mimetype="audio/mpeg",
         headers={
-            "Cache-Control": "no-cache",
-            "Accept-Ranges": "bytes"
+            "icy-metaint": "0",
+            "icy-name": "IMVU Radio Proxy",
+            "icy-genre": "Radio",
+            "Connection": "close",
+            "Cache-Control": "no-cache"
         }
     )
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000)
